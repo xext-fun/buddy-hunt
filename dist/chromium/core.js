@@ -28,6 +28,7 @@
   }
 
   function safeProfileUrl(value) {
+    // Imported links must lead to a LinkedIn member profile before they can be opened.
     if (!value) return "";
     try {
       const url = new URL(value.trim());
@@ -37,6 +38,7 @@
   }
 
   function parseContacts(input) {
+    // Accept both a headered CSV and a plain one-email-per-line text file.
     const rows = csvRows(input);
     if (!rows.length) return { contacts: [], invalid: 0 };
     const first = rows[0].map(value => value.trim().toLowerCase().replace(/[\s-]+/g, "_"));

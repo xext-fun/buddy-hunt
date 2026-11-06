@@ -7,6 +7,7 @@ let state = { contacts: [], mode: "stopped", current: "" };
 let noticeTimer;
 
 function call(api, method, ...args) {
+  // Firefox and Safari expose Promise APIs; Chromium still accepts callbacks.
   if (globalThis.browser) return api[method](...args);
   return new Promise((resolve, reject) => {
     let done = false;
@@ -42,6 +43,7 @@ async function openContact(contact) {
 }
 
 async function advance() {
+  // A status decision completes the current item and opens only one next search.
   if (state.mode !== "running") return;
   const next = nextPending();
   if (!next) {
@@ -150,6 +152,7 @@ function download() {
 }
 
 async function importFile(file) {
+  // Preserve existing local statuses when a later upload contains the same email.
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { notify("Choose a file smaller than 5 MB."); return; }
   const text = await file.text();
