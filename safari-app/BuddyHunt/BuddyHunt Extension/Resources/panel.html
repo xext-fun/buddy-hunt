@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buddy Hunt</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <div class="brand"><span class="brand-mark">bh</span><span>Buddy Hunt</span></div>
+      <h1>Make the next<br><em>connection count.</em></h1>
+      <p>Keep your outreach list organized while you review people on LinkedIn.</p>
+    </header>
+
+    <section class="toolbar" aria-label="List controls">
+      <button id="upload" type="button">Upload</button>
+      <button id="load" type="button">Load</button>
+      <button id="download" type="button">Download</button>
+      <button id="clear" type="button" class="quiet">Clear</button>
+      <input id="file" type="file" accept=".csv,.txt,.json,text/csv,text/plain,application/json" hidden>
+    </section>
+
+    <section class="summary" aria-live="polite">
+      <div><strong id="total">0</strong><span>contacts</span></div>
+      <div><strong id="connected">0</strong><span>connected</span></div>
+      <div><strong id="remaining">0</strong><span>to review</span></div>
+    </section>
+
+    <section class="session" aria-label="Review session">
+      <div class="section-title"><h2>Review session</h2><span id="session-state" class="pill">Stopped</span></div>
+      <p class="hint">Start opens the next email search. Review the person, then record the result to move on.</p>
+      <div class="session-buttons">
+        <button id="start" type="button" class="primary">Start</button>
+        <button id="pause" type="button">Pause</button>
+        <button id="stop" type="button">Stop</button>
+      </div>
+    </section>
+
+    <section class="contacts" aria-label="Contacts">
+      <div class="section-title"><h2>Contacts</h2><span id="count-label">0 in list</span></div>
+      <label class="search-wrap"><span class="sr-only">Filter contacts</span><input id="filter" type="search" placeholder="Filter by name or email"></label>
+      <div id="empty" class="empty"><span class="empty-icon">↗</span><strong>Your list starts here</strong><p>Upload a CSV or text file with emails to begin.</p></div>
+      <ul id="list"></ul>
+    </section>
+    <div id="notice" role="status" aria-live="polite"></div>
+  </main>
+  <script src="core.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

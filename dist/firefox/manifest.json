@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Buddy Hunt",
+  "version": "1.0.0",
+  "description": "Review an email list and track LinkedIn connections locally.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "buddy-hunt@example.com",
+      "strict_min_version": "115.0"
+    }
+  },
+  "action": {
+    "default_title": "Open Buddy Hunt sidebar"
+  },
+  "sidebar_action": {
+    "default_title": "Buddy Hunt",
+    "default_panel": "panel.html"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  }
+}

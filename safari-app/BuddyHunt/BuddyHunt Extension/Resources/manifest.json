@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Buddy Hunt",
+  "version": "1.0.0",
+  "description": "Review an email list and track LinkedIn connections locally.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "action": {
+    "default_title": "Open Buddy Hunt"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
