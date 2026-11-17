@@ -1,4 +1,4 @@
-importScripts("core.js", "chat-core.js", "recorder-background.js", "chat-background.js");
+importScripts("core.js", "watchlist-matcher.js", "watchlist-background.js", "chat-core.js", "recorder-background.js", "chat-background.js");
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
 });

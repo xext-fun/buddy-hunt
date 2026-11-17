@@ -37,6 +37,9 @@
 .watchlist-item button{font-size:11px;min-height:28px;padding:3px 8px}
 .watchlist-item .search-link{color:#176b50}
 .watchlist-item .remove-button{color:#9d4b47}
+.watchlist-pagination{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;font-size:11px;color:#71847d}
+.watchlist-pagination>div{display:flex;gap:6px}
+.watchlist-pagination button{min-height:28px;padding:3px 9px;font-size:11px}
 .draft-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
 .draft-actions button{padding:7px 10px;font-size:11px}
 .chat-key-label{display:block;font-weight:700;font-size:12px;margin-top:18px}

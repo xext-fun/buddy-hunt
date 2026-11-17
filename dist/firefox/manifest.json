@@ -20,6 +20,8 @@
       ],
       "js": [
         "core.js",
+        "watchlist-matcher.js",
+        "watchlist-content.js",
         "recorder-content.js",
         "chat-content.js"
       ],
@@ -55,6 +57,8 @@
   "background": {
     "scripts": [
       "core.js",
+      "watchlist-matcher.js",
+      "watchlist-background.js",
       "chat-core.js",
       "recorder-background.js",
       "chat-background.js",

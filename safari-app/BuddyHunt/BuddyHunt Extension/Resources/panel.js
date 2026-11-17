@@ -7,11 +7,19 @@ const PROFILES_KEY = "buddyHuntProfilesV1";
 const ENABLED_KEY = "buddyHuntRecorderEnabledV1";
 const HANDOFF_KEY = "buddyHuntChatGptHandoffV1";
 const WATCHLIST_KEY = "buddyHuntWatchlistV1";
+const WATCHLIST_MAX = 100000;
+const WATCHLIST_PAGE = 200;
 const CHAT_KEY = "buddyHuntOpenAiKeyV1";
 const CHAT_HISTORY_KEY = "buddyHuntChatHistoryV1";
 let state = { contacts: [], mode: "stopped", current: "" };
 let recordedProfiles = [];
 let watchlist = [];
+let watchlistPage = 0;
+let watchlistWorker = null;
+let watchlistWorkerBroken = false;
+let watchlistWorkerId = 0;
+let watchlistWriteQueue = Promise.resolve();
+const watchlistWorkerRequests = new Map();
 let chatHistory = {};
 let noticeTimer;
 
@@ -33,6 +41,50 @@ function call(api, method, ...args) {
       if (result && typeof result.then === "function") result.then(value => finish(null, value), error => finish(error));
     } catch (error) { finish(error); }
   });
+}
+
+async function watchlistFallback(type, payload) {
+  const existing = BuddyCore.normalizeWatchlist(payload.existing);
+  if (type === "normalize") return { entries: existing };
+  if (type === "remove") return { entries: existing.filter(item => item.type !== payload.entry.type || item.value !== payload.entry.value) };
+  const parsed = type === "parse" ? BuddyCore.parseWatchlist(await payload.file.text(), payload.file.name.toLowerCase().endsWith(".json") ? "json" : payload.file.name.toLowerCase().endsWith(".csv") ? "csv" : "text") : null;
+  const additions = type === "profiles" ? BuddyCore.watchlistFromProfiles(payload.profiles) : parsed.entries;
+  const entries = BuddyCore.normalizeWatchlist([...existing, ...additions]);
+  if (entries.length > WATCHLIST_MAX) throw new Error("The Watchlist can contain up to 100,000 names and handles.");
+  return { entries, added: entries.length - existing.length, invalid: parsed ? parsed.invalid : 0 };
+}
+
+function watchlistJob(type, payload) {
+  if (!watchlistWorker && !watchlistWorkerBroken && typeof Worker !== "undefined") {
+    try {
+      watchlistWorker = new Worker(ext.runtime.getURL("watchlist-worker.js"));
+      watchlistWorker.onmessage = event => {
+        const pending = watchlistWorkerRequests.get(event.data.id);
+        if (!pending) return;
+        watchlistWorkerRequests.delete(event.data.id);
+        event.data.type === "error" ? pending.reject(new Error(event.data.message)) : pending.resolve(event.data);
+      };
+      watchlistWorker.onerror = event => {
+        for (const pending of watchlistWorkerRequests.values()) pending.reject(new Error(event.message || "Watchlist worker failed."));
+        watchlistWorkerRequests.clear();
+        watchlistWorker.terminate();
+        watchlistWorker = null;
+        watchlistWorkerBroken = true;
+      };
+    } catch { watchlistWorker = null; watchlistWorkerBroken = true; }
+  }
+  if (watchlistWorker) return new Promise((resolve, reject) => {
+    const id = ++watchlistWorkerId;
+    watchlistWorkerRequests.set(id, { resolve, reject });
+    watchlistWorker.postMessage({ id, type, ...payload });
+  }).catch(error => watchlistWorkerBroken ? watchlistFallback(type, payload) : Promise.reject(error));
+  return watchlistFallback(type, payload);
+}
+
+function queueWatchlistWrite(work) {
+  const job = watchlistWriteQueue.then(work);
+  watchlistWriteQueue = job.catch(() => {});
+  return job;
 }
 
 async function save() { await call(ext.storage.local, "set", { [KEY]: state }); }
@@ -250,9 +302,12 @@ function renderWatchlist() {
   const query = $("watchlist-filter").value.trim().toLowerCase();
   const list = $("watchlist-list");
   list.replaceChildren();
-  const visible = watchlist.filter(item => item.value.toLowerCase().includes(query));
-  $("watchlist-no-matches").hidden = !watchlist.length || !!visible.length;
-  for (const entry of visible) {
+  let matching = 0;
+  const start = watchlistPage * WATCHLIST_PAGE;
+  for (const entry of watchlist) {
+    if (query && !entry.value.toLowerCase().includes(query)) continue;
+    const position = matching++;
+    if (position < start || position >= start + WATCHLIST_PAGE) continue;
     const row = document.createElement("li");
     row.className = "watchlist-item";
     const label = document.createElement(entry.type === "handle" ? "a" : "span");
@@ -265,23 +320,35 @@ function renderWatchlist() {
     const actions = document.createElement("div");
     actions.className = "watchlist-actions";
     actions.append(button("Search ↗", "search-link", () => searchWatchlistEntry(entry).catch(showError)), button("Remove", "remove-button", () => {
-      call(ext.storage.local, "set", { [WATCHLIST_KEY]: watchlist.filter(item => item.type !== entry.type || item.value !== entry.value) }).catch(showError);
+      queueWatchlistWrite(async () => {
+        const stored = await call(ext.storage.local, "get", WATCHLIST_KEY);
+        const result = await watchlistJob("remove", { existing: stored[WATCHLIST_KEY], entry });
+        await call(ext.storage.local, "set", { [WATCHLIST_KEY]: result.entries });
+      }).catch(showError);
     }));
     row.append(label, actions);
     list.append(row);
   }
+  if (matching && start >= matching) { watchlistPage = Math.floor((matching - 1) / WATCHLIST_PAGE); renderWatchlist(); return; }
+  $("watchlist-no-matches").hidden = !watchlist.length || !!matching;
+  $("watchlist-shown").textContent = watchlist.length ? `Showing ${matching ? (start + 1).toLocaleString() : "0"}–${Math.min(matching, start + WATCHLIST_PAGE).toLocaleString()} of ${matching.toLocaleString()}` : "";
+  $("watchlist-prev").disabled = watchlistPage === 0;
+  $("watchlist-next").disabled = start + WATCHLIST_PAGE >= matching;
 }
 
 async function importWatchlist(file) {
   if (!file) return;
-  if (file.size > 5 * 1024 * 1024) throw new Error("Choose a file smaller than 5 MB.");
-  const format = file.name.toLowerCase().endsWith(".json") ? "json" : file.name.toLowerCase().endsWith(".csv") ? "csv" : "text";
-  const parsed = BuddyCore.parseWatchlist(await file.text(), format);
-  const entries = BuddyCore.normalizeWatchlist([...watchlist, ...parsed.entries]);
-  if (entries.length > 2000) throw new Error("The highlight list can contain up to 2,000 names and handles.");
-  const added = entries.length - watchlist.length;
-  await call(ext.storage.local, "set", { [WATCHLIST_KEY]: entries });
-  notify(`Added ${added} entr${added === 1 ? "y" : "ies"}.${parsed.invalid ? ` Skipped ${parsed.invalid} invalid entr${parsed.invalid === 1 ? "y" : "ies"}.` : ""}`);
+  if (file.size > 50 * 1024 * 1024) throw new Error("Choose a file smaller than 50 MB.");
+  await queueWatchlistWrite(async () => {
+    const stored = await call(ext.storage.local, "get", WATCHLIST_KEY);
+    const result = await watchlistJob("parse", { file, existing: stored[WATCHLIST_KEY] });
+    if (result.entries.length > WATCHLIST_MAX) throw new Error("The Watchlist can contain up to 100,000 names and handles.");
+    await call(ext.storage.local, "set", { [WATCHLIST_KEY]: result.entries });
+    watchlist = result.entries;
+    watchlistPage = 0;
+    renderWatchlist();
+    notify(`Added ${result.added} entr${result.added === 1 ? "y" : "ies"}.${result.invalid ? ` Skipped ${result.invalid} invalid entr${result.invalid === 1 ? "y" : "ies"}.` : ""}`);
+  });
 }
 
 function renderProfiles() {
@@ -368,19 +435,20 @@ function renderProfiles() {
 }
 
 async function addProfilesToWatchlist(profiles, openList) {
-  const stored = await call(ext.storage.local, "get", WATCHLIST_KEY);
-  const existing = BuddyCore.normalizeWatchlist(stored[WATCHLIST_KEY]);
-  const additions = BuddyCore.watchlistFromProfiles(profiles);
-  const merged = BuddyCore.normalizeWatchlist([...existing, ...additions]);
-  if (merged.length > 2000) throw new Error("The Watchlist can hold up to 2,000 names and handles. Remove some entries before adding all profiles.");
-  const added = merged.length - existing.length;
-  if (added) await call(ext.storage.local, "set", { [WATCHLIST_KEY]: merged });
-  watchlist = merged;
-  if (openList) {
-    $("watchlist-filter").value = "";
-    selectTab("watchlist");
-  }
-  notify(added ? `Added ${added} watchlist entr${added === 1 ? "y" : "ies"}.` : "Already on the Watchlist.");
+  await queueWatchlistWrite(async () => {
+    const stored = await call(ext.storage.local, "get", WATCHLIST_KEY);
+    const compactProfiles = profiles.map(profile => ({ name: profile.name, url: profile.url }));
+    const result = await watchlistJob("profiles", { existing: stored[WATCHLIST_KEY], profiles: compactProfiles });
+    if (result.entries.length > WATCHLIST_MAX) throw new Error("The Watchlist can contain up to 100,000 names and handles.");
+    if (result.added) await call(ext.storage.local, "set", { [WATCHLIST_KEY]: result.entries });
+    watchlist = result.entries;
+    if (openList) {
+      $("watchlist-filter").value = "";
+      watchlistPage = 0;
+      selectTab("watchlist");
+    }
+    notify(result.added ? `Added ${result.added} watchlist entr${result.added === 1 ? "y" : "ies"}.` : "Already on the Watchlist.");
+  });
 }
 
 async function addAllProfilesToWatchlist() {
@@ -508,7 +576,9 @@ $("clear-chat-history").addEventListener("click", () => {
   if (confirm("Clear saved LinkedIn conversations and sent-message examples?"))
     call(ext.storage.local, "remove", CHAT_HISTORY_KEY).then(() => notify("Conversation history cleared.")).catch(showError);
 });
-$("watchlist-filter").addEventListener("input", renderWatchlist);
+$("watchlist-filter").addEventListener("input", () => { watchlistPage = 0; renderWatchlist(); });
+$("watchlist-prev").addEventListener("click", () => { if (watchlistPage) watchlistPage--; renderWatchlist(); });
+$("watchlist-next").addEventListener("click", () => { watchlistPage++; renderWatchlist(); });
 $("upload-watchlist").addEventListener("click", () => $("watchlist-file").click());
 $("watchlist-file").addEventListener("change", event => {
   importWatchlist(event.target.files[0]).catch(showError);
@@ -516,7 +586,7 @@ $("watchlist-file").addEventListener("change", event => {
 });
 $("clear-watchlist").addEventListener("click", () => {
   if (watchlist.length && confirm("Clear all highlighted names and handles?"))
-    call(ext.storage.local, "set", { [WATCHLIST_KEY]: [] }).catch(showError);
+    queueWatchlistWrite(() => call(ext.storage.local, "set", { [WATCHLIST_KEY]: [] })).catch(showError);
 });
 $("profile-filter").addEventListener("input", renderProfiles);
 $("record-enabled").addEventListener("change", event => {
@@ -537,7 +607,8 @@ ext.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[ENABLED_KEY]) $("record-enabled").checked = changes[ENABLED_KEY].newValue !== false;
   if (changes[WATCHLIST_KEY]) {
-    watchlist = BuddyCore.normalizeWatchlist(changes[WATCHLIST_KEY].newValue);
+    watchlist = Array.isArray(changes[WATCHLIST_KEY].newValue) ? changes[WATCHLIST_KEY].newValue : [];
+    watchlistPage = 0;
     renderWatchlist();
   }
   if (changes[CHAT_KEY]) {
@@ -553,6 +624,8 @@ loadSaved().catch(showError);
 loadProfiles().catch(showError);
 loadChats().catch(showError);
 call(ext.storage.local, "get", WATCHLIST_KEY).then(stored => {
-  watchlist = BuddyCore.normalizeWatchlist(stored[WATCHLIST_KEY]);
+  return watchlistJob("normalize", { existing: stored[WATCHLIST_KEY] });
+}).then(result => {
+  watchlist = result.entries;
   renderWatchlist();
 }).catch(showError);

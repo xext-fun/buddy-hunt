@@ -20,6 +20,8 @@
       ],
       "js": [
         "core.js",
+        "watchlist-matcher.js",
+        "watchlist-content.js",
         "recorder-content.js",
         "chat-content.js"
       ],

@@ -30,6 +30,10 @@
 		A849BF63309E766900A1591A /* chat-core.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF66309E766900A1591A /* chat-core.js */; };
 		A849BF64309E766900A1591A /* chat-background.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF67309E766900A1591A /* chat-background.js */; };
 		A849BF65309E766900A1591A /* chat-content.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF68309E766900A1591A /* chat-content.js */; };
+		A849BF69309E766900A1591A /* watchlist-matcher.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF6C309E766900A1591A /* watchlist-matcher.js */; };
+		A849BF6A309E766900A1591A /* watchlist-worker.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF6D309E766900A1591A /* watchlist-worker.js */; };
+		A849BF6B309E766900A1591A /* watchlist-content.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF6E309E766900A1591A /* watchlist-content.js */; };
+		A849BF6F309E766900A1591A /* watchlist-background.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF70309E766900A1591A /* watchlist-background.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +87,10 @@
 		A849BF66309E766900A1591A /* chat-core.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chat-core.js; path = Resources/chat-core.js; sourceTree = "<group>"; };
 		A849BF67309E766900A1591A /* chat-background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chat-background.js; path = Resources/chat-background.js; sourceTree = "<group>"; };
 		A849BF68309E766900A1591A /* chat-content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chat-content.js; path = Resources/chat-content.js; sourceTree = "<group>"; };
+		A849BF6C309E766900A1591A /* watchlist-matcher.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = watchlist-matcher.js; path = Resources/watchlist-matcher.js; sourceTree = "<group>"; };
+		A849BF6D309E766900A1591A /* watchlist-worker.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = watchlist-worker.js; path = Resources/watchlist-worker.js; sourceTree = "<group>"; };
+		A849BF6E309E766900A1591A /* watchlist-content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = watchlist-content.js; path = Resources/watchlist-content.js; sourceTree = "<group>"; };
+		A849BF70309E766900A1591A /* watchlist-background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = watchlist-background.js; path = Resources/watchlist-background.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,6 +179,10 @@
 				A849BF66309E766900A1591A /* chat-core.js */,
 				A849BF67309E766900A1591A /* chat-background.js */,
 				A849BF68309E766900A1591A /* chat-content.js */,
+				A849BF6C309E766900A1591A /* watchlist-matcher.js */,
+				A849BF6D309E766900A1591A /* watchlist-worker.js */,
+				A849BF6E309E766900A1591A /* watchlist-content.js */,
+				A849BF70309E766900A1591A /* watchlist-background.js */,
 			);
 			name = Resources;
 			path = "BuddyHunt Extension";
@@ -288,6 +300,10 @@
 				A849BF63309E766900A1591A /* chat-core.js in Resources */,
 				A849BF64309E766900A1591A /* chat-background.js in Resources */,
 				A849BF65309E766900A1591A /* chat-content.js in Resources */,
+				A849BF69309E766900A1591A /* watchlist-matcher.js in Resources */,
+				A849BF6A309E766900A1591A /* watchlist-worker.js in Resources */,
+				A849BF6B309E766900A1591A /* watchlist-content.js in Resources */,
+				A849BF6F309E766900A1591A /* watchlist-background.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

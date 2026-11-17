@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const base = path.resolve(__dirname, "..");
-const shared = ["panel.html", "panel.css", "panel.js", "core.js", "chat-core.js", "chat-background.js", "recorder-background.js", "recorder-content.js", "chat-content.js", "chatgpt-handoff.js"];
+const shared = ["panel.html", "panel.css", "panel.js", "core.js", "watchlist-matcher.js", "watchlist-worker.js", "watchlist-content.js", "watchlist-background.js", "chat-core.js", "chat-background.js", "recorder-background.js", "recorder-content.js", "chat-content.js", "chatgpt-handoff.js"];
 const common = {
   manifest_version: 3,
   name: "Buddy Hunt",
@@ -11,7 +11,7 @@ const common = {
   permissions: ["storage", "tabs", "unlimitedStorage"],
   host_permissions: ["https://*.linkedin.com/*", "https://chatgpt.com/*", "https://api.openai.com/*"],
   content_scripts: [
-    { matches: ["https://*.linkedin.com/*"], js: ["core.js", "recorder-content.js", "chat-content.js"], run_at: "document_idle" },
+    { matches: ["https://*.linkedin.com/*"], js: ["core.js", "watchlist-matcher.js", "watchlist-content.js", "recorder-content.js", "chat-content.js"], run_at: "document_idle" },
     { matches: ["https://chatgpt.com/*"], js: ["chatgpt-handoff.js"], run_at: "document_idle" }
   ],
   icons: { 48: "icon.png", 128: "icon.png" }
@@ -31,7 +31,7 @@ const manifests = {
     browser_specific_settings: { gecko: { id: "buddy-hunt@example.com", strict_min_version: "115.0" } },
     action: { default_title: "Open Buddy Hunt sidebar" },
     sidebar_action: { default_title: "Buddy Hunt", default_panel: "panel.html" },
-    background: { scripts: ["core.js", "chat-core.js", "recorder-background.js", "chat-background.js", "background.js"] }
+    background: { scripts: ["core.js", "watchlist-matcher.js", "watchlist-background.js", "chat-core.js", "recorder-background.js", "chat-background.js", "background.js"] }
   },
   safari: {
     ...common,

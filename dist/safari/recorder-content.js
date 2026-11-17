@@ -3,16 +3,10 @@
 (() => {
   const ext = globalThis.browser || globalThis.chrome;
   const ENABLED_KEY = "buddyHuntRecorderEnabledV1";
-  const WATCHLIST_KEY = "buddyHuntWatchlistV1";
   let enabled = false;
-  let watchlist = [];
-  let highlightPattern = null;
   let timer;
   let pageUrl = location.href;
   const sent = new Map();
-  const style = document.createElement("style");
-  style.textContent = ".buddy-hunt-match{outline:3px solid #16a765!important;outline-offset:2px!important;border-radius:3px!important;background:rgba(22,167,101,.13)!important;box-decoration-break:clone!important;-webkit-box-decoration-break:clone!important}";
-  (document.head || document.documentElement).append(style);
 
   function call(api, method, ...args) {
     if (globalThis.browser) return api[method](...args);
@@ -76,68 +70,7 @@
     return anchor.parentElement;
   }
 
-  function setWatchlist(values) {
-    watchlist = BuddyCore.normalizeWatchlist(values);
-    const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const terms = watchlist.map(entry => entry.type === "handle" ? `@${entry.value}` : entry.value)
-      .sort((a, b) => b.length - a.length).map(escape);
-    highlightPattern = terms.length ? new RegExp(`(?<![\\p{L}\\p{N}_])(?:${terms.join("|")})(?![\\p{L}\\p{N}_])`, "giu") : null;
-    for (const mark of document.querySelectorAll("span.buddy-hunt-match[data-buddy-hunt-text]"))
-      mark.replaceWith(document.createTextNode(mark.textContent));
-    for (const anchor of document.querySelectorAll("a.buddy-hunt-match[data-buddy-hunt-link]")) {
-      anchor.classList.remove("buddy-hunt-match");
-      anchor.removeAttribute("data-buddy-hunt-link");
-    }
-    schedule();
-  }
-
-  function highlightMatches() {
-    const handles = new Set(watchlist.filter(entry => entry.type === "handle").map(entry => entry.value));
-    for (const anchor of document.querySelectorAll("a.buddy-hunt-match[data-buddy-hunt-link]")) {
-      if (handles.has(BuddyCore.normalizeHandle(anchor.href))) continue;
-      anchor.classList.remove("buddy-hunt-match");
-      anchor.removeAttribute("data-buddy-hunt-link");
-    }
-    for (const anchor of document.querySelectorAll('a[href*="/in/"], a[href*="/pub/"]')) {
-      if (!handles.has(BuddyCore.normalizeHandle(anchor.href)) || anchor.hasAttribute("data-buddy-hunt-link")) continue;
-      anchor.classList.add("buddy-hunt-match");
-      anchor.setAttribute("data-buddy-hunt-link", "");
-    }
-    if (!highlightPattern || !document.body) return;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-        const parent = node.parentElement;
-        if (!parent || parent.closest("script, style, noscript, textarea, input, select, option, button, [contenteditable], [data-buddy-hunt-text], [data-buddy-hunt-link]"))
-          return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
-      }
-    });
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (const node of nodes) {
-      const value = node.nodeValue;
-      highlightPattern.lastIndex = 0;
-      const matches = [...value.matchAll(highlightPattern)];
-      if (!matches.length) continue;
-      const fragment = document.createDocumentFragment();
-      let cursor = 0;
-      for (const match of matches) {
-        if (match.index > cursor) fragment.append(document.createTextNode(value.slice(cursor, match.index)));
-        const mark = document.createElement("span");
-        mark.className = "buddy-hunt-match";
-        mark.setAttribute("data-buddy-hunt-text", "");
-        mark.textContent = match[0];
-        fragment.append(mark);
-        cursor = match.index + match[0].length;
-      }
-      if (cursor < value.length) fragment.append(document.createTextNode(value.slice(cursor)));
-      node.replaceWith(fragment);
-    }
-  }
-
   function collect() {
-    highlightMatches();
     if (!enabled) return Promise.resolve();
     if (pageUrl !== location.href) { pageUrl = location.href; sent.clear(); }
     const profiles = new Map();
@@ -198,18 +131,14 @@
 
   ext.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes[WATCHLIST_KEY]) {
-      setWatchlist(changes[WATCHLIST_KEY].newValue);
-    }
     if (changes[ENABLED_KEY]) {
       enabled = changes[ENABLED_KEY].newValue !== false;
       sent.clear();
       if (enabled) schedule();
     }
   });
-  call(ext.storage.local, "get", [ENABLED_KEY, WATCHLIST_KEY]).then(result => {
+  call(ext.storage.local, "get", ENABLED_KEY).then(result => {
     enabled = result[ENABLED_KEY] !== false;
-    setWatchlist(result[WATCHLIST_KEY]);
     schedule();
   }).catch(error => console.error("Buddy Hunt recorder:", error));
   new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["href"] });
