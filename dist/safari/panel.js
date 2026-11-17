@@ -7,9 +7,12 @@ const PROFILES_KEY = "buddyHuntProfilesV1";
 const ENABLED_KEY = "buddyHuntRecorderEnabledV1";
 const HANDOFF_KEY = "buddyHuntChatGptHandoffV1";
 const WATCHLIST_KEY = "buddyHuntWatchlistV1";
+const CHAT_KEY = "buddyHuntOpenAiKeyV1";
+const CHAT_HISTORY_KEY = "buddyHuntChatHistoryV1";
 let state = { contacts: [], mode: "stopped", current: "" };
 let recordedProfiles = [];
 let watchlist = [];
+let chatHistory = {};
 let noticeTimer;
 
 function call(api, method, ...args) {
@@ -46,6 +49,17 @@ function nextPending() { return state.contacts.find(item => item.status === "pen
 async function openContact(contact) {
   const url = contact.profileUrl || BuddyCore.searchUrl(contact);
   await call(ext.tabs, "create", { url });
+}
+
+async function searchWatchlistEntry(entry) {
+  const url = BuddyCore.watchlistSearchUrl(entry);
+  const tabs = await call(ext.tabs, "query", { active: true, currentWindow: true });
+  const activeTab = tabs && tabs[0];
+  if (activeTab && /^https:\/\/([a-z]{2,3}\.)?linkedin\.com\//i.test(activeTab.url || "")) {
+    await call(ext.tabs, "update", activeTab.id, { url });
+  } else {
+    await call(ext.tabs, "create", { url });
+  }
 }
 
 async function advance() {
@@ -160,36 +174,100 @@ function download() {
 function selectTab(name) {
   const profiles = name === "profiles";
   const watchlistSelected = name === "watchlist";
-  $("contacts-view").hidden = profiles || watchlistSelected;
+  const chats = name === "chats";
+  document.querySelector(".chatgpt-export").hidden = watchlistSelected || chats;
+  $("contacts-view").hidden = profiles || watchlistSelected || chats;
   $("profiles-view").hidden = !profiles;
   $("watchlist-view").hidden = !watchlistSelected;
-  for (const [id, selected] of [["contacts-tab", !profiles && !watchlistSelected], ["profiles-tab", profiles], ["watchlist-tab", watchlistSelected]]) {
+  $("chats-view").hidden = !chats;
+  for (const [id, selected] of [["contacts-tab", !profiles && !watchlistSelected && !chats], ["profiles-tab", profiles], ["watchlist-tab", watchlistSelected], ["chats-tab", chats]]) {
     $(id).classList.toggle("active", selected);
     $(id).setAttribute("aria-selected", String(selected));
   }
   if (profiles) renderProfiles();
   if (watchlistSelected) renderWatchlist();
+  if (chats) renderChats();
+}
+
+function renderChats() {
+  const chats = Object.values(chatHistory).filter(item => item && item.recipient)
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+  $("chats-tab-count").textContent = chats.length;
+  $("chats-count").textContent = `${chats.length} conversation${chats.length === 1 ? "" : "s"}`;
+  $("chats-empty").hidden = !!chats.length;
+  $("clear-chat-history").disabled = !chats.length;
+  const list = $("chats-list");
+  list.replaceChildren();
+  for (const chat of chats) {
+    const row = document.createElement("li");
+    row.className = "chat-history-item";
+    const details = document.createElement("details");
+    const summary = document.createElement("summary");
+    const label = document.createElement("strong");
+    label.textContent = chat.recipient;
+    const count = document.createElement("span");
+    count.textContent = `${Array.isArray(chat.sent) ? chat.sent.length : 0} sent`;
+    summary.append(label, count);
+    details.append(summary);
+    if (chat.url) {
+      const link = document.createElement("a");
+      link.href = chat.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Open on LinkedIn ↗";
+      details.append(link);
+    }
+    if (chat.context) {
+      const context = document.createElement("p");
+      context.className = "chat-context";
+      context.textContent = chat.context.slice(-3000);
+      details.append(context);
+    }
+    for (const item of (Array.isArray(chat.sent) ? chat.sent.slice(-10) : [])) {
+      const sent = document.createElement("p");
+      sent.className = "chat-sent";
+      sent.textContent = `You sent: ${item.text}`;
+      details.append(sent);
+    }
+    row.append(details);
+    list.append(row);
+  }
+}
+
+async function loadChats() {
+  const stored = await call(ext.storage.local, "get", [CHAT_KEY, CHAT_HISTORY_KEY]);
+  $("chat-key-status").textContent = stored[CHAT_KEY] ? "API key saved on this device." : "No API key saved.";
+  $("remove-chat-key").disabled = !stored[CHAT_KEY];
+  chatHistory = stored[CHAT_HISTORY_KEY] && typeof stored[CHAT_HISTORY_KEY] === "object" ? stored[CHAT_HISTORY_KEY] : {};
+  renderChats();
 }
 
 function renderWatchlist() {
   $("watchlist-tab-count").textContent = watchlist.length;
-  $("watchlist-count").textContent = `${watchlist.length} handle${watchlist.length === 1 ? "" : "s"}`;
+  $("watchlist-count").textContent = `${watchlist.length} entr${watchlist.length === 1 ? "y" : "ies"}`;
   $("clear-watchlist").disabled = !watchlist.length;
   $("watchlist-empty").hidden = !!watchlist.length;
   const query = $("watchlist-filter").value.trim().toLowerCase();
   const list = $("watchlist-list");
   list.replaceChildren();
-  for (const handle of watchlist.filter(value => value.includes(query))) {
+  const visible = watchlist.filter(item => item.value.toLowerCase().includes(query));
+  $("watchlist-no-matches").hidden = !watchlist.length || !!visible.length;
+  for (const entry of visible) {
     const row = document.createElement("li");
     row.className = "watchlist-item";
-    const link = document.createElement("a");
-    link.href = `https://www.linkedin.com/in/${encodeURIComponent(handle)}/`;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = `@${handle}`;
-    row.append(link, button("Remove", "", () => {
-      call(ext.storage.local, "set", { [WATCHLIST_KEY]: watchlist.filter(value => value !== handle) }).catch(showError);
+    const label = document.createElement(entry.type === "handle" ? "a" : "span");
+    if (entry.type === "handle") {
+      label.href = `https://www.linkedin.com/in/${encodeURIComponent(entry.value)}/`;
+      label.target = "_blank";
+      label.rel = "noopener noreferrer";
+    }
+    label.textContent = entry.type === "handle" ? `@${entry.value}` : entry.value;
+    const actions = document.createElement("div");
+    actions.className = "watchlist-actions";
+    actions.append(button("Search ↗", "search-link", () => searchWatchlistEntry(entry).catch(showError)), button("Remove", "remove-button", () => {
+      call(ext.storage.local, "set", { [WATCHLIST_KEY]: watchlist.filter(item => item.type !== entry.type || item.value !== entry.value) }).catch(showError);
     }));
+    row.append(label, actions);
     list.append(row);
   }
 }
@@ -198,17 +276,18 @@ async function importWatchlist(file) {
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) throw new Error("Choose a file smaller than 5 MB.");
   const format = file.name.toLowerCase().endsWith(".json") ? "json" : file.name.toLowerCase().endsWith(".csv") ? "csv" : "text";
-  const parsed = BuddyCore.parseHandles(await file.text(), format);
-  const existing = new Set(watchlist);
-  for (const handle of parsed.handles) existing.add(handle);
-  const added = existing.size - watchlist.length;
-  await call(ext.storage.local, "set", { [WATCHLIST_KEY]: [...existing] });
-  notify(`Added ${added} handle${added === 1 ? "" : "s"}.${parsed.invalid ? ` Skipped ${parsed.invalid} invalid entr${parsed.invalid === 1 ? "y" : "ies"}.` : ""}`);
+  const parsed = BuddyCore.parseWatchlist(await file.text(), format);
+  const entries = BuddyCore.normalizeWatchlist([...watchlist, ...parsed.entries]);
+  if (entries.length > 2000) throw new Error("The highlight list can contain up to 2,000 names and handles.");
+  const added = entries.length - watchlist.length;
+  await call(ext.storage.local, "set", { [WATCHLIST_KEY]: entries });
+  notify(`Added ${added} entr${added === 1 ? "y" : "ies"}.${parsed.invalid ? ` Skipped ${parsed.invalid} invalid entr${parsed.invalid === 1 ? "y" : "ies"}.` : ""}`);
 }
 
 function renderProfiles() {
   $("profile-tab-count").textContent = recordedProfiles.length;
   $("profile-count").textContent = `${recordedProfiles.length} unique`;
+  $("add-all-profiles-watchlist").disabled = !recordedProfiles.length;
   $("download-profiles").disabled = !recordedProfiles.length;
   $("clear-profiles").disabled = !recordedProfiles.length;
   $("chatgpt-export-hint").textContent = recordedProfiles.length
@@ -251,6 +330,7 @@ function renderProfiles() {
       meta.textContent = [profile.company, profile.location, sourceTypes.join(", ")].filter(Boolean).join(" · ");
       li.append(meta);
     }
+    li.append(button("Add to Watchlist", "profile-add-watchlist", () => addProfilesToWatchlist([profile], false).catch(showError)));
     const details = document.createElement("details");
     const summary = document.createElement("summary");
     summary.textContent = "Details and sources";
@@ -285,6 +365,27 @@ function renderProfiles() {
     li.append(details);
     list.append(li);
   }
+}
+
+async function addProfilesToWatchlist(profiles, openList) {
+  const stored = await call(ext.storage.local, "get", WATCHLIST_KEY);
+  const existing = BuddyCore.normalizeWatchlist(stored[WATCHLIST_KEY]);
+  const additions = BuddyCore.watchlistFromProfiles(profiles);
+  const merged = BuddyCore.normalizeWatchlist([...existing, ...additions]);
+  if (merged.length > 2000) throw new Error("The Watchlist can hold up to 2,000 names and handles. Remove some entries before adding all profiles.");
+  const added = merged.length - existing.length;
+  if (added) await call(ext.storage.local, "set", { [WATCHLIST_KEY]: merged });
+  watchlist = merged;
+  if (openList) {
+    $("watchlist-filter").value = "";
+    selectTab("watchlist");
+  }
+  notify(added ? `Added ${added} watchlist entr${added === 1 ? "y" : "ies"}.` : "Already on the Watchlist.");
+}
+
+async function addAllProfilesToWatchlist() {
+  const stored = await call(ext.storage.local, "get", PROFILES_KEY);
+  await addProfilesToWatchlist(Array.isArray(stored[PROFILES_KEY]) ? stored[PROFILES_KEY] : [], true);
 }
 
 function downloadProfiles() {
@@ -391,6 +492,22 @@ $("filter").addEventListener("input", render);
 $("contacts-tab").addEventListener("click", () => selectTab("contacts"));
 $("profiles-tab").addEventListener("click", () => selectTab("profiles"));
 $("watchlist-tab").addEventListener("click", () => selectTab("watchlist"));
+$("chats-tab").addEventListener("click", () => selectTab("chats"));
+$("save-chat-key").addEventListener("click", () => {
+  const key = $("chat-api-key").value.trim();
+  if (!key || /\s/.test(key)) { notify("Paste a valid OpenAI API key."); return; }
+  call(ext.storage.local, "set", { [CHAT_KEY]: key }).then(() => {
+    $("chat-api-key").value = "";
+    notify("API key saved on this device.");
+  }).catch(showError);
+});
+$("remove-chat-key").addEventListener("click", () => {
+  call(ext.storage.local, "remove", CHAT_KEY).then(() => notify("API key removed.")).catch(showError);
+});
+$("clear-chat-history").addEventListener("click", () => {
+  if (confirm("Clear saved LinkedIn conversations and sent-message examples?"))
+    call(ext.storage.local, "remove", CHAT_HISTORY_KEY).then(() => notify("Conversation history cleared.")).catch(showError);
+});
 $("watchlist-filter").addEventListener("input", renderWatchlist);
 $("upload-watchlist").addEventListener("click", () => $("watchlist-file").click());
 $("watchlist-file").addEventListener("change", event => {
@@ -398,7 +515,7 @@ $("watchlist-file").addEventListener("change", event => {
   event.target.value = "";
 });
 $("clear-watchlist").addEventListener("click", () => {
-  if (watchlist.length && confirm("Clear all highlighted handles?"))
+  if (watchlist.length && confirm("Clear all highlighted names and handles?"))
     call(ext.storage.local, "set", { [WATCHLIST_KEY]: [] }).catch(showError);
 });
 $("profile-filter").addEventListener("input", renderProfiles);
@@ -406,6 +523,7 @@ $("record-enabled").addEventListener("change", event => {
   call(ext.storage.local, "set", { [ENABLED_KEY]: event.target.checked }).catch(showError);
 });
 $("download-profiles").addEventListener("click", downloadProfiles);
+$("add-all-profiles-watchlist").addEventListener("click", () => addAllProfilesToWatchlist().catch(showError));
 $("send-chatgpt").addEventListener("click", () => sendToChatGpt().catch(showError));
 $("clear-profiles").addEventListener("click", () => {
   if (confirm("Clear all recorded profiles and source history?"))
@@ -419,13 +537,22 @@ ext.storage.onChanged.addListener((changes, area) => {
   }
   if (changes[ENABLED_KEY]) $("record-enabled").checked = changes[ENABLED_KEY].newValue !== false;
   if (changes[WATCHLIST_KEY]) {
-    watchlist = Array.isArray(changes[WATCHLIST_KEY].newValue) ? changes[WATCHLIST_KEY].newValue.map(BuddyCore.normalizeHandle).filter(Boolean) : [];
+    watchlist = BuddyCore.normalizeWatchlist(changes[WATCHLIST_KEY].newValue);
     renderWatchlist();
+  }
+  if (changes[CHAT_KEY]) {
+    $("chat-key-status").textContent = changes[CHAT_KEY].newValue ? "API key saved on this device." : "No API key saved.";
+    $("remove-chat-key").disabled = !changes[CHAT_KEY].newValue;
+  }
+  if (changes[CHAT_HISTORY_KEY]) {
+    chatHistory = changes[CHAT_HISTORY_KEY].newValue && typeof changes[CHAT_HISTORY_KEY].newValue === "object" ? changes[CHAT_HISTORY_KEY].newValue : {};
+    renderChats();
   }
 });
 loadSaved().catch(showError);
 loadProfiles().catch(showError);
+loadChats().catch(showError);
 call(ext.storage.local, "get", WATCHLIST_KEY).then(stored => {
-  watchlist = Array.isArray(stored[WATCHLIST_KEY]) ? [...new Set(stored[WATCHLIST_KEY].map(BuddyCore.normalizeHandle).filter(Boolean))] : [];
+  watchlist = BuddyCore.normalizeWatchlist(stored[WATCHLIST_KEY]);
   renderWatchlist();
 }).catch(showError);

@@ -73,3 +73,42 @@ test("imports and normalizes LinkedIn handles without matching display names", (
   assert.equal(core.normalizeHandle("https://evil.test/in/ada-7"), "");
   assert.equal(core.normalizeHandle("Ada Lovelace"), "");
 });
+
+test("imports names and handles together and migrates saved handles", () => {
+  assert.deepEqual(core.parseWatchlist('name,handle,linkedin_url\n"Jane Doe",@Jane-7,\n"Grace Hopper",,https://www.linkedin.com/in/grace_8/\nJane Doe,@jane-7,', "csv"), {
+    entries: [
+      { type: "name", value: "Jane Doe" }, { type: "handle", value: "jane-7" },
+      { type: "name", value: "Grace Hopper" }, { type: "handle", value: "grace_8" }
+    ], invalid: 0
+  });
+  assert.deepEqual(core.parseWatchlist("Jane Doe\n@jane-7\nname: Jane\n", "text").entries, [
+    { type: "name", value: "Jane Doe" }, { type: "handle", value: "jane-7" }, { type: "name", value: "Jane" }
+  ]);
+  assert.deepEqual(core.parseWatchlist('{"names":["Jane Doe"],"handles":["@jane-7"]}', "json").entries, [
+    { type: "handle", value: "jane-7" }, { type: "name", value: "Jane Doe" }
+  ]);
+  assert.deepEqual(core.normalizeWatchlist(["jane-7", { type: "name", value: "Jane Doe" }]), [
+    { type: "handle", value: "jane-7" }, { type: "name", value: "Jane Doe" }
+  ]);
+});
+
+test("opens a LinkedIn people search for a watchlist name or handle", () => {
+  assert.equal(core.watchlistSearchUrl({ type: "name", value: "Grace Hopper" }),
+    "https://www.linkedin.com/search/results/people/?keywords=Grace%20Hopper");
+  assert.equal(core.watchlistSearchUrl({ type: "handle", value: "grace_8" }),
+    "https://www.linkedin.com/search/results/people/?keywords=%40grace_8");
+});
+
+test("adds each recorded profile's name and handle to the watchlist without duplicates", () => {
+  const entries = core.watchlistFromProfiles([
+    { name: "Grace Hopper", url: "https://www.linkedin.com/in/grace_8/?trk=feed" },
+    { name: "Grace Hopper", url: "https://www.linkedin.com/in/grace_8/" },
+    { name: "Ada Lovelace", url: "https://www.linkedin.com/in/ada-7/" },
+    { name: "Not LinkedIn", url: "https://example.com/in/nope" }
+  ]);
+  assert.deepEqual(entries, [
+    { type: "name", value: "Grace Hopper" }, { type: "handle", value: "grace_8" },
+    { type: "name", value: "Ada Lovelace" }, { type: "handle", value: "ada-7" }
+  ]);
+  assert.equal(core.normalizeWatchlist([...entries, ...entries]).length, 4);
+});

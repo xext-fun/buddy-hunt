@@ -27,6 +27,9 @@
 		A849BF5D309E766900A1591A /* recorder-background.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF5F309E766900A1591A /* recorder-background.js */; };
 		A849BF5E309E766900A1591A /* recorder-content.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF60309E766900A1591A /* recorder-content.js */; };
 		A849BF61309E766900A1591A /* chatgpt-handoff.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF62309E766900A1591A /* chatgpt-handoff.js */; };
+		A849BF63309E766900A1591A /* chat-core.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF66309E766900A1591A /* chat-core.js */; };
+		A849BF64309E766900A1591A /* chat-background.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF67309E766900A1591A /* chat-background.js */; };
+		A849BF65309E766900A1591A /* chat-content.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF68309E766900A1591A /* chat-content.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -77,6 +80,9 @@
 		A849BF5F309E766900A1591A /* recorder-background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = recorder-background.js; path = Resources/recorder-background.js; sourceTree = "<group>"; };
 		A849BF60309E766900A1591A /* recorder-content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = recorder-content.js; path = Resources/recorder-content.js; sourceTree = "<group>"; };
 		A849BF62309E766900A1591A /* chatgpt-handoff.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chatgpt-handoff.js; path = Resources/chatgpt-handoff.js; sourceTree = "<group>"; };
+		A849BF66309E766900A1591A /* chat-core.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chat-core.js; path = Resources/chat-core.js; sourceTree = "<group>"; };
+		A849BF67309E766900A1591A /* chat-background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chat-background.js; path = Resources/chat-background.js; sourceTree = "<group>"; };
+		A849BF68309E766900A1591A /* chat-content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chat-content.js; path = Resources/chat-content.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -162,6 +168,9 @@
 				A849BF5F309E766900A1591A /* recorder-background.js */,
 				A849BF60309E766900A1591A /* recorder-content.js */,
 				A849BF62309E766900A1591A /* chatgpt-handoff.js */,
+				A849BF66309E766900A1591A /* chat-core.js */,
+				A849BF67309E766900A1591A /* chat-background.js */,
+				A849BF68309E766900A1591A /* chat-content.js */,
 			);
 			name = Resources;
 			path = "BuddyHunt Extension";
@@ -276,6 +285,9 @@
 				A849BF5D309E766900A1591A /* recorder-background.js in Resources */,
 				A849BF5E309E766900A1591A /* recorder-content.js in Resources */,
 				A849BF61309E766900A1591A /* chatgpt-handoff.js in Resources */,
+				A849BF63309E766900A1591A /* chat-core.js in Resources */,
+				A849BF64309E766900A1591A /* chat-background.js in Resources */,
+				A849BF65309E766900A1591A /* chat-content.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

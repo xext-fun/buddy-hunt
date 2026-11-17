@@ -90,6 +90,11 @@
     return "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(contact.email);
   }
 
+  function watchlistSearchUrl(entry) {
+    const query = entry.type === "handle" ? `@${entry.value}` : entry.value;
+    return "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(query);
+  }
+
   function canonicalProfileUrl(value) {
     const safe = safeProfileUrl(value);
     if (!safe) return "";
@@ -134,6 +139,76 @@
       else if (String(value || "").trim()) invalid++;
     }
     return { handles: [...handles], invalid };
+  }
+
+  function normalizeWatchlistEntry(value, type) {
+    if (value && typeof value === "object") {
+      if (value.type && value.value) return normalizeWatchlistEntry(value.value, value.type);
+      if (value.handle || value.profileUrl || value.profile_url || value.linkedin_url || value.url)
+        return normalizeWatchlistEntry(value.handle || value.profileUrl || value.profile_url || value.linkedin_url || value.url, "handle");
+      return normalizeWatchlistEntry(value.name || value.full_name, "name");
+    }
+    const input = String(value || "").trim();
+    if (!input) return null;
+    const kind = type || (/^name\s*:/i.test(input) || /\s/.test(input) ? "name" : "handle");
+    if (kind === "handle") {
+      const handle = normalizeHandle(input);
+      return handle ? { type: "handle", value: handle } : null;
+    }
+    if (kind !== "name") return null;
+    const name = input.replace(/^name\s*:/i, "").replace(/\s+/g, " ").trim();
+    return name && name.length <= 200 && /[\p{L}\p{N}]/u.test(name) && !/[<>\r\n]/.test(name)
+      ? { type: "name", value: name } : null;
+  }
+
+  function normalizeWatchlist(values) {
+    if (!Array.isArray(values)) return [];
+    const entries = new Map();
+    for (const value of values) {
+      const entry = normalizeWatchlistEntry(value);
+      if (entry) entries.set(`${entry.type}:${entry.value.toLocaleLowerCase()}`, entry);
+    }
+    return [...entries.values()];
+  }
+
+  function watchlistFromProfiles(profiles) {
+    if (!Array.isArray(profiles)) return [];
+    const entries = [];
+    for (const profile of profiles) {
+      const url = canonicalProfileUrl(profile && profile.url);
+      if (!url) continue;
+      if (profile.name) entries.push({ type: "name", value: profile.name });
+      entries.push({ type: "handle", value: url });
+    }
+    return normalizeWatchlist(entries);
+  }
+
+  function parseWatchlist(input, format = "text") {
+    let values;
+    if (format === "json") {
+      const data = JSON.parse(input);
+      values = Array.isArray(data) ? data : data && (data.entries || data.watchlist ||
+        (Array.isArray(data.handles) || Array.isArray(data.names) ? [
+          ...(Array.isArray(data.handles) ? data.handles.map(handle => ({ handle })) : []),
+          ...(Array.isArray(data.names) ? data.names.map(name => ({ name })) : [])
+        ] : null));
+      if (!Array.isArray(values)) throw new Error("JSON must contain an entries, watchlist, handles, or names array.");
+    } else if (format === "csv") {
+      const rows = csvRows(input);
+      const headers = (rows[0] || []).map(value => value.trim().toLowerCase().replace(/[\s-]+/g, "_"));
+      const columns = headers.map((header, index) => ({ header, index })).filter(item =>
+        ["handle", "linkedin_handle", "profile_url", "linkedin_url", "url", "name", "full_name", "display_name"].includes(item.header));
+      values = !columns.length ? rows.map(row => row[0]) : rows.slice(1).flatMap(row => columns.map(({ header, index }) =>
+        ["name", "full_name", "display_name"].includes(header) ? { name: row[index] } : { handle: row[index] }));
+    } else values = String(input).split(/\r?\n/);
+    const entries = [];
+    let invalid = 0;
+    for (const value of values) {
+      const entry = normalizeWatchlistEntry(value);
+      if (entry) entries.push(entry);
+      else if (String(value || "").trim() && !(typeof value === "object" && Object.values(value).every(item => !item))) invalid++;
+    }
+    return { entries: normalizeWatchlist(entries), invalid };
   }
 
   function sourceType(value) {
@@ -217,7 +292,7 @@ Use one row per unique canonical LinkedIn profile URL. Deduplicate the attached 
     return { spreadsheetName, filename, prompt, searchTerms: [...searches] };
   }
 
-  const api = { csvRows, parseContacts, normalizeContact, safeProfileUrl, exportCsv, searchUrl, canonicalProfileUrl, normalizeHandle, parseHandles, sourceType, mergeProfile, profileHandoff };
+  const api = { csvRows, parseContacts, normalizeContact, safeProfileUrl, exportCsv, searchUrl, watchlistSearchUrl, canonicalProfileUrl, normalizeHandle, parseHandles, normalizeWatchlist, watchlistFromProfiles, parseWatchlist, sourceType, mergeProfile, profileHandoff };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BuddyCore = api;
 })(globalThis);

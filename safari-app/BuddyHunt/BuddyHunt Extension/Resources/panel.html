@@ -18,6 +18,7 @@
       <button id="contacts-tab" class="active" type="button" aria-selected="true" aria-controls="contacts-view">Contacts</button>
       <button id="profiles-tab" type="button" aria-selected="false" aria-controls="profiles-view">Profiles <span id="profile-tab-count">0</span></button>
       <button id="watchlist-tab" type="button" aria-selected="false" aria-controls="watchlist-view">Watchlist <span id="watchlist-tab-count">0</span></button>
+      <button id="chats-tab" type="button" aria-selected="false" aria-controls="chats-view">Chats <span id="chats-tab-count">0</span></button>
     </nav>
 
     <section class="chatgpt-export" aria-label="Google Sheets export">
@@ -64,6 +65,7 @@
       <p class="hint">Save visible LinkedIn profile details from search, timeline, connections, and profile pages. Each profile keeps the pages where it appeared.</p>
       <label class="record-toggle"><input id="record-enabled" type="checkbox" checked><span>Record profiles on LinkedIn pages</span></label>
       <div class="profile-toolbar">
+        <button id="add-all-profiles-watchlist" type="button" class="primary">Add all to Watchlist</button>
         <button id="download-profiles" type="button" class="primary">Download profiles JSON</button>
         <button id="clear-profiles" type="button" class="quiet">Clear profiles</button>
       </div>
@@ -71,18 +73,32 @@
       <div id="profiles-empty" class="empty"><span class="empty-icon">↗</span><strong>No profiles recorded yet</strong><p>Browse LinkedIn with recording on to collect profiles shown on the page.</p></div>
       <ul id="profiles-list"></ul>
     </section>
-    <section id="watchlist-view" class="profiles-view" aria-label="Highlighted handles" hidden>
-      <div class="section-title"><h2>Highlighted handles</h2><span id="watchlist-count">0 handles</span></div>
-      <p class="hint">Upload LinkedIn handles or profile URLs. Matches on your timeline and in search results get a green border.</p>
+    <section id="watchlist-view" class="profiles-view" aria-label="Highlighted names and handles" hidden>
+      <div class="section-title"><h2>Names and handles to engage</h2><span id="watchlist-count">0 entries</span></div>
+      <p class="hint">Upload names, LinkedIn handles, or profile URLs. Every visible match on LinkedIn gets a green box, including new content as you scroll.</p>
       <div class="profile-toolbar">
-        <button id="upload-watchlist" type="button" class="primary">Upload handles</button>
+        <button id="upload-watchlist" type="button" class="primary">Upload names or handles</button>
         <button id="clear-watchlist" type="button" class="quiet">Clear list</button>
         <input id="watchlist-file" type="file" accept=".csv,.txt,.json,text/csv,text/plain,application/json" hidden>
       </div>
-      <p class="hint">CSV: <code>handle</code> or <code>linkedin_url</code> column. Text: one handle or profile URL per line. JSON: an array or a <code>handles</code> array.</p>
-      <label class="search-wrap"><span class="sr-only">Filter highlighted handles</span><input id="watchlist-filter" type="search" placeholder="Filter handles"></label>
-      <div id="watchlist-empty" class="empty"><strong>No handles uploaded yet</strong></div>
+      <p class="hint">CSV: <code>name</code>, <code>handle</code>, or <code>linkedin_url</code> columns. Text: one entry per line (use <code>name: Jane</code> for a single-word name). JSON: an array or <code>names</code>/<code>handles</code> arrays.</p>
+      <label class="search-wrap"><span class="sr-only">Filter uploaded names and handles</span><input id="watchlist-filter" type="search" placeholder="Filter uploaded names or handles"></label>
+      <div id="watchlist-empty" class="empty"><strong>No names or handles uploaded yet</strong></div>
+      <div id="watchlist-no-matches" class="empty" hidden><strong>No matching names or handles</strong></div>
       <ul id="watchlist-list"></ul>
+    </section>
+    <section id="chats-view" class="profiles-view" aria-label="LinkedIn chat assistant" hidden>
+      <div class="section-title"><h2>LinkedIn chat assistant</h2><span id="chats-count">0 conversations</span></div>
+      <p class="hint">Focus a LinkedIn message box to show Buddy Hunt’s reply controls beside it. Generate, edit, refresh, polish, and send in that chat.</p>
+      <label class="chat-key-label" for="chat-api-key">OpenAI API key</label>
+      <input id="chat-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key">
+      <div class="draft-actions"><button id="save-chat-key" type="button" class="primary">Save key</button><button id="remove-chat-key" type="button" class="quiet">Remove key</button></div>
+      <p id="chat-key-status" class="hint">No API key saved.</p>
+      <p class="hint">Need a key? <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Open your API keys page ↗</a></p>
+      <div class="section-title chat-history-title"><h2>Conversations</h2><button id="clear-chat-history" type="button" class="quiet">Clear history</button></div>
+      <p class="hint">Chats you focus are saved on this device. Replies you send help future drafts match your wording.</p>
+      <div id="chats-empty" class="empty"><strong>No conversations saved yet</strong></div>
+      <ul id="chats-list"></ul>
     </section>
     <div id="notice" role="status" aria-live="polite"></div>
   </main>

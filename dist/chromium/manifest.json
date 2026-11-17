@@ -11,7 +11,8 @@
   ],
   "host_permissions": [
     "https://*.linkedin.com/*",
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://api.openai.com/*"
   ],
   "content_scripts": [
     {
@@ -20,7 +21,8 @@
       ],
       "js": [
         "core.js",
-        "recorder-content.js"
+        "recorder-content.js",
+        "chat-content.js"
       ],
       "run_at": "document_idle"
     },

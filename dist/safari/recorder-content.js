@@ -5,12 +5,13 @@
   const ENABLED_KEY = "buddyHuntRecorderEnabledV1";
   const WATCHLIST_KEY = "buddyHuntWatchlistV1";
   let enabled = false;
-  let watchlist = new Set();
+  let watchlist = [];
+  let highlightPattern = null;
   let timer;
   let pageUrl = location.href;
   const sent = new Map();
   const style = document.createElement("style");
-  style.textContent = ".buddy-hunt-match{outline:3px solid #16a765!important;outline-offset:-3px!important;border-radius:8px!important}";
+  style.textContent = ".buddy-hunt-match{outline:3px solid #16a765!important;outline-offset:2px!important;border-radius:3px!important;background:rgba(22,167,101,.13)!important;box-decoration-break:clone!important;-webkit-box-decoration-break:clone!important}";
   (document.head || document.documentElement).append(style);
 
   function call(api, method, ...args) {
@@ -75,22 +76,64 @@
     return anchor.parentElement;
   }
 
-  function highlightMatches() {
-    const type = BuddyCore.sourceType(location.href);
-    const matches = new Set();
-    if ((type === "timeline" || type === "search") && watchlist.size) {
-      for (const anchor of document.querySelectorAll('a[href*="/in/"]')) {
-        const handle = BuddyCore.normalizeHandle(anchor.href);
-        if (!watchlist.has(handle)) continue;
-        const card = anchor.closest(type === "search"
-          ? ".entity-result, .reusable-search__result-container, .search-result, li.artdeco-list__item"
-          : ".comments-comment-item, .feed-shared-update-v2, .occludable-update, article[data-urn]");
-        if (card) matches.add(card);
-      }
+  function setWatchlist(values) {
+    watchlist = BuddyCore.normalizeWatchlist(values);
+    const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const terms = watchlist.map(entry => entry.type === "handle" ? `@${entry.value}` : entry.value)
+      .sort((a, b) => b.length - a.length).map(escape);
+    highlightPattern = terms.length ? new RegExp(`(?<![\\p{L}\\p{N}_])(?:${terms.join("|")})(?![\\p{L}\\p{N}_])`, "giu") : null;
+    for (const mark of document.querySelectorAll("span.buddy-hunt-match[data-buddy-hunt-text]"))
+      mark.replaceWith(document.createTextNode(mark.textContent));
+    for (const anchor of document.querySelectorAll("a.buddy-hunt-match[data-buddy-hunt-link]")) {
+      anchor.classList.remove("buddy-hunt-match");
+      anchor.removeAttribute("data-buddy-hunt-link");
     }
-    for (const card of document.querySelectorAll(".buddy-hunt-match"))
-      if (!matches.has(card)) card.classList.remove("buddy-hunt-match");
-    for (const card of matches) card.classList.add("buddy-hunt-match");
+    schedule();
+  }
+
+  function highlightMatches() {
+    const handles = new Set(watchlist.filter(entry => entry.type === "handle").map(entry => entry.value));
+    for (const anchor of document.querySelectorAll("a.buddy-hunt-match[data-buddy-hunt-link]")) {
+      if (handles.has(BuddyCore.normalizeHandle(anchor.href))) continue;
+      anchor.classList.remove("buddy-hunt-match");
+      anchor.removeAttribute("data-buddy-hunt-link");
+    }
+    for (const anchor of document.querySelectorAll('a[href*="/in/"], a[href*="/pub/"]')) {
+      if (!handles.has(BuddyCore.normalizeHandle(anchor.href)) || anchor.hasAttribute("data-buddy-hunt-link")) continue;
+      anchor.classList.add("buddy-hunt-match");
+      anchor.setAttribute("data-buddy-hunt-link", "");
+    }
+    if (!highlightPattern || !document.body) return;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent || parent.closest("script, style, noscript, textarea, input, select, option, button, [contenteditable], [data-buddy-hunt-text], [data-buddy-hunt-link]"))
+          return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const value = node.nodeValue;
+      highlightPattern.lastIndex = 0;
+      const matches = [...value.matchAll(highlightPattern)];
+      if (!matches.length) continue;
+      const fragment = document.createDocumentFragment();
+      let cursor = 0;
+      for (const match of matches) {
+        if (match.index > cursor) fragment.append(document.createTextNode(value.slice(cursor, match.index)));
+        const mark = document.createElement("span");
+        mark.className = "buddy-hunt-match";
+        mark.setAttribute("data-buddy-hunt-text", "");
+        mark.textContent = match[0];
+        fragment.append(mark);
+        cursor = match.index + match[0].length;
+      }
+      if (cursor < value.length) fragment.append(document.createTextNode(value.slice(cursor)));
+      node.replaceWith(fragment);
+    }
   }
 
   function collect() {
@@ -156,9 +199,7 @@
   ext.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes[WATCHLIST_KEY]) {
-      watchlist = new Set(Array.isArray(changes[WATCHLIST_KEY].newValue)
-        ? changes[WATCHLIST_KEY].newValue.map(BuddyCore.normalizeHandle).filter(Boolean) : []);
-      schedule();
+      setWatchlist(changes[WATCHLIST_KEY].newValue);
     }
     if (changes[ENABLED_KEY]) {
       enabled = changes[ENABLED_KEY].newValue !== false;
@@ -168,11 +209,10 @@
   });
   call(ext.storage.local, "get", [ENABLED_KEY, WATCHLIST_KEY]).then(result => {
     enabled = result[ENABLED_KEY] !== false;
-    watchlist = new Set(Array.isArray(result[WATCHLIST_KEY])
-      ? result[WATCHLIST_KEY].map(BuddyCore.normalizeHandle).filter(Boolean) : []);
+    setWatchlist(result[WATCHLIST_KEY]);
     schedule();
   }).catch(error => console.error("Buddy Hunt recorder:", error));
-  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["href"] });
   window.addEventListener("popstate", schedule);
   window.addEventListener("hashchange", schedule);
   window.addEventListener("scroll", schedule, { passive: true });
