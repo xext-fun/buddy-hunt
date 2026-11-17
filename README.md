@@ -9,12 +9,25 @@ A local browser extension for reviewing an email list and recording LinkedIn con
 - Start opens a LinkedIn people search for the next pending email, or the supplied profile URL. After you mark that contact **Connected**, **Reviewed**, or **Not found**, the next pending contact opens. Pause and Stop halt that sequence.
 - Filter the list, open a search or supplied profile on demand, and remove individual contacts.
 - Data stays in browser extension local storage. No server or account is required.
+- The **Profiles** tab records LinkedIn member profiles visible while you browse search, timeline, connections, and profile pages. Recording starts on by default and can be turned off in the tab. Each canonical profile URL is stored once, with the pages where it was seen, timestamps, headline, company, About, Experience, Education, and visible profile text when those details appear on the page. Download exports this data as JSON; Clear profiles removes it independently of your contact list.
+- The **Watchlist** tab accepts a CSV, text, or JSON list of LinkedIn handles or profile URLs. CSV can use a `handle` or `linkedin_url` column; text uses one entry per line; JSON can be an array or an object with a `handles` array. Matching profile links in timeline posts and search results receive a green border, including results loaded while scrolling. Remove individual handles or clear the list from the tab. This works independently of profile recording.
+- **Open ChatGPT and upload** appears below the Contacts and Profiles tabs. It refreshes the active LinkedIn page's profile capture, opens a new ChatGPT tab, attempts to attach the recorded profiles as JSON, and asks the connected Google Drive and Google Sheets tools to deduplicate and merge them into an existing Sheet when one has the same name. The Sheet name comes from the captured search parameter when there is one search, or from the source category otherwise. If ChatGPT's upload controls cannot be used automatically, the new tab offers the JSON download and a copyable request for manual attachment. Google Drive and Google Sheets must be connected in ChatGPT with permission to create or update Sheets.
+
+Profile recording uses the information rendered in your browser. It cannot capture hidden fields, content you have not loaded or scrolled into view, or information LinkedIn does not show. The extension requests access to LinkedIn pages for this feature.
 
 **LinkedIn search by email is not guaranteed to find the right person.** Verify each result before taking action. Buddy Hunt does not click LinkedIn's Connect button or infer connection status. LinkedIn [prohibits extensions that automate activity on its site](https://www.linkedin.com/help/linkedin/answer/a1341387).
 
 ## Install
 
-Run `npm run build` after editing `src/`.
+Clone the repository, then build the browser packages (Node.js and npm are required):
+
+```sh
+git clone https://github.com/xext-fun/buddy-hunt.git
+cd buddy-hunt
+npm run build
+```
+
+Run `npm run build` again after editing `src/`.
 
 | Browser | Install from source | Interface |
 | --- | --- | --- |

@@ -5,7 +5,33 @@
   "description": "Review an email list and track LinkedIn connections locally.",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "https://chatgpt.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.linkedin.com/*"
+      ],
+      "js": [
+        "core.js",
+        "recorder-content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "chatgpt-handoff.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
   "icons": {
     "48": "icon.png",

@@ -90,7 +90,134 @@
     return "https://www.linkedin.com/search/results/people/?keywords=" + encodeURIComponent(contact.email);
   }
 
-  const api = { csvRows, parseContacts, normalizeContact, safeProfileUrl, exportCsv, searchUrl };
+  function canonicalProfileUrl(value) {
+    const safe = safeProfileUrl(value);
+    if (!safe) return "";
+    try {
+      const url = new URL(safe);
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (parts.length < 2) return "";
+      const path = parts[0] === "pub" ? parts : parts.slice(0, 2);
+      return `https://www.linkedin.com/${path.map(part => encodeURIComponent(decodeURIComponent(part))).join("/")}/`;
+    } catch { return ""; }
+  }
+
+  function normalizeHandle(value) {
+    if (value && typeof value === "object") value = value.handle || value.profileUrl || value.profile_url || value.linkedin_url || value.url;
+    let input = String(value || "").trim();
+    if (!input) return "";
+    if (/^(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\//i.test(input)) {
+      const url = canonicalProfileUrl(/^https?:\/\//i.test(input) ? input : `https://${input}`);
+      if (!url) return "";
+      input = new URL(url).pathname.split("/")[2];
+    } else input = input.replace(/^@/, "");
+    return /^[a-z0-9][a-z0-9_-]{0,99}$/i.test(input) ? input.toLowerCase() : "";
+  }
+
+  function parseHandles(input, format = "text") {
+    let values;
+    if (format === "json") {
+      const data = JSON.parse(input);
+      values = Array.isArray(data) ? data : data && (data.handles || data.profiles);
+      if (!Array.isArray(values)) throw new Error("JSON must contain a handles or profiles array.");
+    } else if (format === "csv") {
+      const rows = csvRows(input);
+      const headers = (rows[0] || []).map(value => value.trim().toLowerCase().replace(/[\s-]+/g, "_"));
+      const column = headers.findIndex(value => ["handle", "linkedin_handle", "profile_url", "linkedin_url", "url"].includes(value));
+      values = rows.slice(column < 0 ? 0 : 1).map(row => row[column < 0 ? 0 : column]);
+    } else values = String(input).split(/\r?\n/);
+    const handles = new Set();
+    let invalid = 0;
+    for (const value of values) {
+      const handle = normalizeHandle(value);
+      if (handle) handles.add(handle);
+      else if (String(value || "").trim()) invalid++;
+    }
+    return { handles: [...handles], invalid };
+  }
+
+  function sourceType(value) {
+    try {
+      const path = new URL(value).pathname;
+      if (/^\/search\//.test(path)) return "search";
+      if (/^\/feed(?:\/|$)/.test(path)) return "timeline";
+      if (/^\/mynetwork(?:\/|$)/.test(path)) return "connections";
+      if (/^\/(in|pub)\//.test(path)) return "profile";
+    } catch { /* Unknown source. */ }
+    return "other";
+  }
+
+  function cleanText(value, limit = 2000) {
+    return String(value || "").replace(/\s+/g, " ").trim().slice(0, limit);
+  }
+
+  function mergeProfile(existing, incoming) {
+    const url = canonicalProfileUrl(incoming && incoming.url);
+    if (!url) return null;
+    const now = new Date().toISOString();
+    const previous = existing && existing.url === url ? existing : {};
+    const fields = ["name", "headline", "location", "company", "about", "experience", "education", "imageUrl", "visibleText"];
+    const profile = {
+      url,
+      name: cleanText(previous.name, 300),
+      headline: cleanText(previous.headline, 500),
+      location: cleanText(previous.location, 300),
+      company: cleanText(previous.company, 300),
+      about: cleanText(previous.about, 8000),
+      experience: cleanText(previous.experience, 8000),
+      education: cleanText(previous.education, 8000),
+      imageUrl: cleanText(previous.imageUrl, 1000),
+      visibleText: cleanText(previous.visibleText, 30000),
+      firstSeenAt: previous.firstSeenAt || now,
+      lastSeenAt: now,
+      sources: Array.isArray(previous.sources) ? previous.sources.slice() : []
+    };
+    for (const field of fields) {
+      const limit = field === "visibleText" ? 30000 : ["about", "experience", "education"].includes(field) ? 8000 : field === "imageUrl" ? 1000 : 500;
+      const value = cleanText(incoming[field], limit);
+      const isProfilePage = sourceType(incoming.sourceUrl) === "profile";
+      const detail = ["about", "experience", "education", "visibleText"].includes(field);
+      if (value && (detail ? value.length > profile[field].length : isProfilePage || !profile[field])) profile[field] = value;
+    }
+    const pageUrl = cleanText(incoming.sourceUrl, 2000);
+    const type = sourceType(pageUrl);
+    if (pageUrl) {
+      const source = profile.sources.find(item => item.url === pageUrl);
+      if (source) {
+        source.lastSeenAt = now;
+        source.type = type;
+        source.count = Math.max(1, Number(source.count) || 1) + 1;
+        if (cleanText(incoming.visibleText, 30000).length > cleanText(source.visibleText, 30000).length)
+          source.visibleText = cleanText(incoming.visibleText, 30000);
+      } else profile.sources.push({ url: pageUrl, type, firstSeenAt: now, lastSeenAt: now, count: 1, visibleText: cleanText(incoming.visibleText, 30000) });
+    }
+    return profile;
+  }
+
+  function profileHandoff(profiles) {
+    const searches = new Set();
+    const types = new Set();
+    for (const profile of profiles) for (const source of Array.isArray(profile.sources) ? profile.sources : []) {
+      types.add(sourceType(source.url));
+      if (sourceType(source.url) !== "search") continue;
+      try {
+        const query = new URL(source.url).searchParams;
+        const term = cleanText(query.get("keywords") || query.get("q"), 80);
+        if (term) searches.add(term);
+      } catch { /* Ignore malformed source URLs. */ }
+    }
+    const label = searches.size === 1 ? `Search - ${[...searches][0]}` :
+      searches.size > 1 ? "Mixed Searches" : types.has("connections") ? "Connections" :
+      types.has("timeline") ? "Timeline" : "Profiles";
+    const spreadsheetName = `Buddy Hunt - LinkedIn - ${label}`;
+    const filename = `buddy-hunt-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "profiles"}.json`;
+    const prompt = `Use the connected Google Drive and Google Sheets tools to create or update a native Google Sheet from the attached Buddy Hunt profile export named "${spreadsheetName}". If a sheet with that exact name already exists, merge into it instead of creating a duplicate. If Google Drive or Google Sheets is not connected or write access is unavailable, tell me what I need to enable.
+
+Use one row per unique canonical LinkedIn profile URL. Deduplicate the attached profiles and the existing sheet by that URL, merge nonempty fields, preserve existing information when the new export is blank, and keep the earliest first-seen and latest last-seen timestamps. Include name, profile URL, headline, location, company, about, experience, education, image URL, visible text, first seen, last seen, source types, source URLs, search terms from source URL parameters, and source history/counts. Read the structured profile fields from the JSON; do not drop headline or company when merging. Search pages, timeline/feed pages, connection pages, and profile pages should retain their distinct source labels. Add a main "Profiles" tab and, when applicable, tabs for each search term and for Connections or Timeline, with rows linked to the same canonical profiles. Name search tabs from their actual URL search parameters, using short valid tab names. Preserve all source history from both the export and existing sheet. Tell me the Sheet link and the count of new and updated profiles when done.`;
+    return { spreadsheetName, filename, prompt, searchTerms: [...searches] };
+  }
+
+  const api = { csvRows, parseContacts, normalizeContact, safeProfileUrl, exportCsv, searchUrl, canonicalProfileUrl, normalizeHandle, parseHandles, sourceType, mergeProfile, profileHandoff };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.BuddyCore = api;
 })(globalThis);

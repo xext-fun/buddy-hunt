@@ -14,6 +14,19 @@
       <p>Keep your outreach list organized while you review people on LinkedIn.</p>
     </header>
 
+    <nav class="tabs" aria-label="Workspace tabs">
+      <button id="contacts-tab" class="active" type="button" aria-selected="true" aria-controls="contacts-view">Contacts</button>
+      <button id="profiles-tab" type="button" aria-selected="false" aria-controls="profiles-view">Profiles <span id="profile-tab-count">0</span></button>
+      <button id="watchlist-tab" type="button" aria-selected="false" aria-controls="watchlist-view">Watchlist <span id="watchlist-tab-count">0</span></button>
+    </nav>
+
+    <section class="chatgpt-export" aria-label="Google Sheets export">
+      <div><strong>Send handles to Google Sheets</strong><p id="chatgpt-export-hint">Record LinkedIn profiles, then send them through ChatGPT to deduplicate and merge with an existing Sheet.</p></div>
+      <button id="send-chatgpt" type="button" class="primary">Open ChatGPT and upload ↗</button>
+    </section>
+
+    <div id="contacts-view">
+
     <section class="toolbar" aria-label="List controls">
       <button id="upload" type="button">Upload</button>
       <button id="load" type="button">Load</button>
@@ -43,6 +56,33 @@
       <label class="search-wrap"><span class="sr-only">Filter contacts</span><input id="filter" type="search" placeholder="Filter by name or email"></label>
       <div id="empty" class="empty"><span class="empty-icon">↗</span><strong>Your list starts here</strong><p>Upload a CSV or text file with emails to begin.</p></div>
       <ul id="list"></ul>
+    </section>
+    </div>
+
+    <section id="profiles-view" class="profiles-view" aria-label="Recorded profiles" hidden>
+      <div class="section-title"><h2>Recorded profiles</h2><span id="profile-count">0 unique</span></div>
+      <p class="hint">Save visible LinkedIn profile details from search, timeline, connections, and profile pages. Each profile keeps the pages where it appeared.</p>
+      <label class="record-toggle"><input id="record-enabled" type="checkbox" checked><span>Record profiles on LinkedIn pages</span></label>
+      <div class="profile-toolbar">
+        <button id="download-profiles" type="button" class="primary">Download profiles JSON</button>
+        <button id="clear-profiles" type="button" class="quiet">Clear profiles</button>
+      </div>
+      <label class="search-wrap"><span class="sr-only">Filter profiles</span><input id="profile-filter" type="search" placeholder="Filter by name, headline, or URL"></label>
+      <div id="profiles-empty" class="empty"><span class="empty-icon">↗</span><strong>No profiles recorded yet</strong><p>Browse LinkedIn with recording on to collect profiles shown on the page.</p></div>
+      <ul id="profiles-list"></ul>
+    </section>
+    <section id="watchlist-view" class="profiles-view" aria-label="Highlighted handles" hidden>
+      <div class="section-title"><h2>Highlighted handles</h2><span id="watchlist-count">0 handles</span></div>
+      <p class="hint">Upload LinkedIn handles or profile URLs. Matches on your timeline and in search results get a green border.</p>
+      <div class="profile-toolbar">
+        <button id="upload-watchlist" type="button" class="primary">Upload handles</button>
+        <button id="clear-watchlist" type="button" class="quiet">Clear list</button>
+        <input id="watchlist-file" type="file" accept=".csv,.txt,.json,text/csv,text/plain,application/json" hidden>
+      </div>
+      <p class="hint">CSV: <code>handle</code> or <code>linkedin_url</code> column. Text: one handle or profile URL per line. JSON: an array or a <code>handles</code> array.</p>
+      <label class="search-wrap"><span class="sr-only">Filter highlighted handles</span><input id="watchlist-filter" type="search" placeholder="Filter handles"></label>
+      <div id="watchlist-empty" class="empty"><strong>No handles uploaded yet</strong></div>
+      <ul id="watchlist-list"></ul>
     </section>
     <div id="notice" role="status" aria-live="polite"></div>
   </main>

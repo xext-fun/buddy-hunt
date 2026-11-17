@@ -1,0 +1,179 @@
+"use strict";
+
+(() => {
+  const ext = globalThis.browser || globalThis.chrome;
+  const ENABLED_KEY = "buddyHuntRecorderEnabledV1";
+  const WATCHLIST_KEY = "buddyHuntWatchlistV1";
+  let enabled = false;
+  let watchlist = new Set();
+  let timer;
+  let pageUrl = location.href;
+  const sent = new Map();
+  const style = document.createElement("style");
+  style.textContent = ".buddy-hunt-match{outline:3px solid #16a765!important;outline-offset:-3px!important;border-radius:8px!important}";
+  (document.head || document.documentElement).append(style);
+
+  function call(api, method, ...args) {
+    if (globalThis.browser) return api[method](...args);
+    return new Promise((resolve, reject) => api[method](...args, value => {
+      const error = ext.runtime.lastError;
+      error ? reject(new Error(error.message)) : resolve(value);
+    }));
+  }
+
+  function text(node, limit = 2000) {
+    return String(node && (node.innerText === undefined ? node.textContent : node.innerText) || "").replace(/\s+/g, " ").trim().slice(0, limit);
+  }
+
+  function firstText(root, selectors, limit) {
+    for (const selector of selectors) {
+      const value = text(root && root.querySelector(selector), limit);
+      if (value) return value;
+    }
+    return "";
+  }
+
+  function profileSection(main, id, limit = 8000) {
+    const heading = main && main.querySelector(`#${id}`);
+    const section = heading && heading.closest("section");
+    return text(section, limit);
+  }
+
+  function ownProfile(main, url) {
+    const top = main && (main.querySelector(".pv-top-card, .pv-text-details__left-panel") || main);
+    const image = top && top.querySelector("img.profile-photo-edit__preview, img.pv-top-card-profile-picture__image, img[alt]");
+    const experience = profileSection(main, "experience");
+    const topOrganization = firstText(top, [
+      ".pv-text-details__right-panel li:first-child a",
+      ".pv-text-details__right-panel li:first-child"
+    ], 300);
+    const experienceSection = main.querySelector("#experience")?.closest("section");
+    const experienceCompany = firstText(experienceSection, [
+      ".pvs-list__paged-list-item:first-child .t-14.t-normal",
+      ".pvs-entity .t-14.t-normal"
+    ], 300);
+    const company = topOrganization && (!experience || experience.toLowerCase().includes(topOrganization.toLowerCase()))
+      ? topOrganization : experienceCompany;
+    return {
+      url,
+      sourceUrl: location.href,
+      name: firstText(top, ["h1"], 300) || firstText(main, ["h1"], 300),
+      headline: firstText(top, [".pv-text-details__left-panel .text-body-medium", ".text-body-medium", "[data-test-id='headline']"], 500),
+      location: firstText(top, [".pv-text-details__left-panel .text-body-small", ".text-body-small"], 300),
+      company,
+      about: profileSection(main, "about", 8000),
+      experience,
+      education: profileSection(main, "education", 8000),
+      imageUrl: image && /^https?:\/\//.test(image.src) ? image.src : "",
+      visibleText: text(main, 30000)
+    };
+  }
+
+  function cardFor(anchor) {
+    const card = anchor.closest(".entity-result, .mn-connection-card, .update-components-actor, .feed-shared-actor, .comments-comment-item, .artdeco-card, li, article, [data-view-name], .feed-shared-update-v2");
+    if (card && text(card, 5000).length <= 4000) return card;
+    return anchor.parentElement;
+  }
+
+  function highlightMatches() {
+    const type = BuddyCore.sourceType(location.href);
+    const matches = new Set();
+    if ((type === "timeline" || type === "search") && watchlist.size) {
+      for (const anchor of document.querySelectorAll('a[href*="/in/"]')) {
+        const handle = BuddyCore.normalizeHandle(anchor.href);
+        if (!watchlist.has(handle)) continue;
+        const card = anchor.closest(type === "search"
+          ? ".entity-result, .reusable-search__result-container, .search-result, li.artdeco-list__item"
+          : ".comments-comment-item, .feed-shared-update-v2, .occludable-update, article[data-urn]");
+        if (card) matches.add(card);
+      }
+    }
+    for (const card of document.querySelectorAll(".buddy-hunt-match"))
+      if (!matches.has(card)) card.classList.remove("buddy-hunt-match");
+    for (const card of matches) card.classList.add("buddy-hunt-match");
+  }
+
+  function collect() {
+    highlightMatches();
+    if (!enabled) return Promise.resolve();
+    if (pageUrl !== location.href) { pageUrl = location.href; sent.clear(); }
+    const profiles = new Map();
+    const ownUrl = BuddyCore.canonicalProfileUrl(location.href);
+    if (ownUrl) {
+      const main = document.querySelector("main");
+      if (main) profiles.set(ownUrl, ownProfile(main, ownUrl));
+    }
+    for (const anchor of document.querySelectorAll('a[href*="/in/"], a[href*="/pub/"]')) {
+      const url = BuddyCore.canonicalProfileUrl(anchor.href);
+      if (!url) continue;
+      if (url === ownUrl && profiles.has(url)) continue;
+      const card = cardFor(anchor);
+      const image = card && card.querySelector("img");
+      const heading = anchor.querySelector("strong, span[aria-hidden='true']") || anchor;
+      const name = text(heading, 300) || (image && image.alt) || "";
+      const lines = card ? text(card, 4000) : "";
+      const ownPage = url === ownUrl;
+      const profile = {
+        url,
+        sourceUrl: location.href,
+        name: ownPage ? text(document.querySelector("main h1, h1"), 300) || name : name,
+        headline: ownPage ? text(document.querySelector("main .text-body-medium"), 500) : firstText(card, [".entity-result__primary-subtitle", ".mn-connection-card__occupation", ".update-components-actor__description", ".feed-shared-actor__description"], 500),
+        location: ownPage ? text(document.querySelector("main .text-body-small"), 300) : firstText(card, [".entity-result__secondary-subtitle"], 300),
+        company: "",
+        about: "",
+        experience: "",
+        education: "",
+        imageUrl: image && /^https?:\/\//.test(image.src) ? image.src : "",
+        visibleText: ownPage ? text(document.querySelector("main"), 30000) : lines
+      };
+      const previous = profiles.get(url);
+      if (!previous || profile.visibleText.length > previous.visibleText.length) profiles.set(url, profile);
+    }
+    const batch = [];
+    for (const profile of profiles.values()) {
+      const fingerprint = JSON.stringify(profile);
+      if (sent.get(profile.url) !== fingerprint) { sent.set(profile.url, fingerprint); batch.push(profile); }
+    }
+    const jobs = [];
+    for (let index = 0; index < batch.length; index += 100)
+      jobs.push(call(ext.runtime, "sendMessage", { type: "buddyHuntRecordProfiles", profiles: batch.slice(index, index + 100) }));
+    return Promise.all(jobs);
+  }
+
+  function schedule() {
+    if (timer) return;
+    timer = setTimeout(() => { timer = null; collect().catch(error => console.error("Buddy Hunt recorder:", error)); }, 700);
+  }
+
+  ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (!message || message.type !== "buddyHuntCollectNow") return;
+    const job = collect().then(() => ({ collected: true }));
+    if (globalThis.browser) return job;
+    job.then(sendResponse, error => sendResponse({ error: error.message }));
+    return true;
+  });
+
+  ext.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    if (changes[WATCHLIST_KEY]) {
+      watchlist = new Set(Array.isArray(changes[WATCHLIST_KEY].newValue)
+        ? changes[WATCHLIST_KEY].newValue.map(BuddyCore.normalizeHandle).filter(Boolean) : []);
+      schedule();
+    }
+    if (changes[ENABLED_KEY]) {
+      enabled = changes[ENABLED_KEY].newValue !== false;
+      sent.clear();
+      if (enabled) schedule();
+    }
+  });
+  call(ext.storage.local, "get", [ENABLED_KEY, WATCHLIST_KEY]).then(result => {
+    enabled = result[ENABLED_KEY] !== false;
+    watchlist = new Set(Array.isArray(result[WATCHLIST_KEY])
+      ? result[WATCHLIST_KEY].map(BuddyCore.normalizeHandle).filter(Boolean) : []);
+    schedule();
+  }).catch(error => console.error("Buddy Hunt recorder:", error));
+  new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  window.addEventListener("popstate", schedule);
+  window.addEventListener("hashchange", schedule);
+  window.addEventListener("scroll", schedule, { passive: true });
+})();

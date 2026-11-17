@@ -24,6 +24,9 @@
 		A849BF5A309E766900A1591A /* panel.html in Resources */ = {isa = PBXBuildFile; fileRef = A849BF53309E766900A1591A /* panel.html */; };
 		A849BF5B309E766900A1591A /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = A849BF54309E766900A1591A /* manifest.json */; };
 		A849BF5C309E766900A1591A /* panel.css in Resources */ = {isa = PBXBuildFile; fileRef = A849BF55309E766900A1591A /* panel.css */; };
+		A849BF5D309E766900A1591A /* recorder-background.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF5F309E766900A1591A /* recorder-background.js */; };
+		A849BF5E309E766900A1591A /* recorder-content.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF60309E766900A1591A /* recorder-content.js */; };
+		A849BF61309E766900A1591A /* chatgpt-handoff.js in Resources */ = {isa = PBXBuildFile; fileRef = A849BF62309E766900A1591A /* chatgpt-handoff.js */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,6 +74,9 @@
 		A849BF53309E766900A1591A /* panel.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = panel.html; path = Resources/panel.html; sourceTree = "<group>"; };
 		A849BF54309E766900A1591A /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = manifest.json; path = Resources/manifest.json; sourceTree = "<group>"; };
 		A849BF55309E766900A1591A /* panel.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; name = panel.css; path = Resources/panel.css; sourceTree = "<group>"; };
+		A849BF5F309E766900A1591A /* recorder-background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = recorder-background.js; path = Resources/recorder-background.js; sourceTree = "<group>"; };
+		A849BF60309E766900A1591A /* recorder-content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = recorder-content.js; path = Resources/recorder-content.js; sourceTree = "<group>"; };
+		A849BF62309E766900A1591A /* chatgpt-handoff.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = chatgpt-handoff.js; path = Resources/chatgpt-handoff.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,6 +159,9 @@
 				A849BF53309E766900A1591A /* panel.html */,
 				A849BF54309E766900A1591A /* manifest.json */,
 				A849BF55309E766900A1591A /* panel.css */,
+				A849BF5F309E766900A1591A /* recorder-background.js */,
+				A849BF60309E766900A1591A /* recorder-content.js */,
+				A849BF62309E766900A1591A /* chatgpt-handoff.js */,
 			);
 			name = Resources;
 			path = "BuddyHunt Extension";
@@ -264,6 +273,9 @@
 				A849BF57309E766900A1591A /* core.js in Resources */,
 				A849BF5B309E766900A1591A /* manifest.json in Resources */,
 				A849BF59309E766900A1591A /* panel.js in Resources */,
+				A849BF5D309E766900A1591A /* recorder-background.js in Resources */,
+				A849BF5E309E766900A1591A /* recorder-content.js in Resources */,
+				A849BF61309E766900A1591A /* chatgpt-handoff.js in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
